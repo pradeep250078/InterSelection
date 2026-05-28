@@ -1,0 +1,694 @@
+# 🚨 Round 2 — Senior DevOps / Kubernetes / SRE Interview Scenarios
+
+![Kubernetes](https://img.shields.io/badge/Kubernetes-SRE-blue?style=for-the-badge\&logo=kubernetes)
+![AWS](https://img.shields.io/badge/AWS-Production-orange?style=for-the-badge\&logo=amazonaws)
+![Linux](https://img.shields.io/badge/Linux-Systemd-black?style=for-the-badge\&logo=linux)
+![Terraform](https://img.shields.io/badge/Terraform-Infra-623CE4?style=for-the-badge\&logo=terraform)
+
+---
+
+# 🔥 A New AWS ALB Config Caused TLS Handshakes to Fail Intermittently
+
+---
+
+# 🎯 RCA Strategy
+
+I would isolate the issue layer-by-layer:
+
+```text id="j5n8lj"
+Client
+  ↓
+DNS
+  ↓
+AWS ALB
+  ↓
+TLS Listener
+  ↓
+Target Group
+  ↓
+Ingress Controller
+  ↓
+Pod
+```
+
+---
+
+# ✅ Step 1 — Validate Scope
+
+Questions:
+
+* All users or partial users?
+* All regions?
+* Specific browsers?
+* TLS version specific?
+* Only during scale events?
+
+---
+
+# ✅ Step 2 — Check ALB Listener Configuration
+
+Validate:
+
+* SSL policy
+* Cipher suites
+* TLS versions
+* ACM certificate ARN
+* SNI configuration
+
+Commands:
+
+```bash id="r4s5o4"
+aws elbv2 describe-listeners
+```
+
+---
+
+# ✅ Step 3 — Review ALB Access Logs
+
+Look for:
+
+* TLS negotiation failures
+* SSL handshake timeout
+* Client reset
+* Cipher mismatch
+
+---
+
+# ✅ Step 4 — Validate ACM Certificate
+
+Check:
+
+* expiration
+* SAN mismatch
+* incomplete chain
+* incorrect wildcard coverage
+
+---
+
+# ✅ Step 5 — Compare Old vs New Config
+
+I would diff:
+
+* listener rules
+* SSL policies
+* redirects
+* ingress annotations
+
+Common issue:
+
+```text id="pk5h2j"
+ELBSecurityPolicy-TLS13-1-2-2021-06
+```
+
+breaking legacy clients.
+
+---
+
+# ✅ Step 6 — Packet-Level Validation
+
+Use:
+
+```bash id="g87fme"
+openssl s_client
+curl -Iv
+tcpdump
+```
+
+---
+
+# 🎯 Likely Root Causes
+
+| Cause                | Symptom                     |
+| -------------------- | --------------------------- |
+| TLS policy mismatch  | Random handshake failures   |
+| ACM cert issue       | Browser trust errors        |
+| SNI misconfiguration | Intermittent failures       |
+| Idle timeout issue   | Connection resets           |
+| ALB scale event      | Temporary negotiation drops |
+
+---
+
+# 🚀 Kubernetes Nodes Healthy But kubectl logs Is Blank
+
+---
+
+# Important Observation
+
+Healthy nodes ≠ healthy logging pipeline.
+
+---
+
+# 🎯 Investigation Flow
+
+```text id="m8im5z"
+kubectl logs
+      ↓
+API Server
+      ↓
+kubelet
+      ↓
+container runtime
+      ↓
+container log files
+```
+
+---
+
+# ✅ Step 1 — Check Pod Status
+
+```bash id="0lbjns"
+kubectl get pod
+kubectl describe pod
+```
+
+---
+
+# ✅ Step 2 — Validate Container Runtime
+
+Possible issue:
+
+* containerd logging broken
+* Docker logging driver changed
+* journald corruption
+
+Check:
+
+```bash id="v5o9wj"
+crictl ps
+crictl logs
+```
+
+---
+
+# ✅ Step 3 — Verify Log File Existence
+
+Kubernetes logs:
+
+```text id="jlwm3m"
+/var/log/pods/
+/var/log/containers/
+```
+
+---
+
+# ✅ Step 4 — Check kubelet
+
+```bash id="p0qj9j"
+journalctl -u kubelet
+```
+
+Possible:
+
+* kubelet cannot read runtime logs
+* CRI socket mismatch
+
+---
+
+# ✅ Step 5 — Runtime API Failure
+
+Common production issue:
+
+```text id="zb7uho"
+containerd restarted
+```
+
+but kubelet stale CRI connection exists.
+
+---
+
+# 🎯 Most Likely Causes
+
+| Cause                             | Result              |
+| --------------------------------- | ------------------- |
+| container runtime logging failure | blank logs          |
+| log rotation corruption           | missing logs        |
+| CRI mismatch                      | kubectl logs broken |
+| ephemeral container crash         | no stdout retained  |
+
+---
+
+# 🚨 Sidecar Logging Agent Caused CPU Throttling
+
+---
+
+# 🎯 Isolation Strategy
+
+First identify:
+
+* node-level or pod-level?
+* sidecar-specific?
+* cluster-wide?
+
+---
+
+# ✅ Step 1 — Validate CPU Throttling
+
+```bash id="7t6psl"
+kubectl top pods
+kubectl describe pod
+```
+
+Check:
+
+```text id="x8nkhq"
+CPU throttling detected
+```
+
+---
+
+# ✅ Step 2 — Compare Before/After Deployment
+
+Likely causes:
+
+* Fluent Bit loop
+* excessive parsing
+* log amplification
+* JSON parsing explosion
+
+---
+
+# ✅ Step 3 — Inspect cgroup Metrics
+
+Check:
+
+```bash id="4dd6zl"
+cat /sys/fs/cgroup/cpu.stat
+```
+
+---
+
+# ✅ Step 4 — Validate Sidecar Resource Limits
+
+Common issue:
+
+```yaml id="g7z9vq"
+limits:
+  cpu: 100m
+```
+
+too low for log bursts.
+
+---
+
+# 🚑 Rollback Strategy
+
+Immediate:
+
+```bash id="b57sm0"
+kubectl rollout undo deployment
+```
+
+Then:
+
+* disable parser plugins
+* reduce flush frequency
+* move logging to DaemonSet model
+
+---
+
+# 🎯 Production Recommendation
+
+Prefer:
+
+```text id="fd3h3i"
+DaemonSet logging agents
+```
+
+instead of sidecar-per-pod model.
+
+---
+
+# 🚀 Autoscaling Not Triggering Despite High CPU
+
+---
+
+# 🎯 Investigation Path
+
+Need to isolate:
+
+* metrics pipeline?
+* HPA config?
+* Metrics Server?
+* API aggregation?
+
+---
+
+# ✅ Step 1 — Verify Metrics Available
+
+```bash id="6lgf9x"
+kubectl top pods
+kubectl top nodes
+```
+
+If broken:
+→ Metrics Server issue.
+
+---
+
+# ✅ Step 2 — Inspect HPA
+
+```bash id="rd5e6v"
+kubectl describe hpa
+```
+
+Look for:
+
+```text id="9u8a7h"
+unable to fetch metrics
+```
+
+---
+
+# ✅ Step 3 — Validate Resource Requests
+
+HPA uses:
+
+```text id="tvtxgp"
+CPU usage / CPU requests
+```
+
+Missing requests:
+→ HPA ineffective.
+
+---
+
+# ✅ Step 4 — Check API Aggregation
+
+Validate:
+
+```bash id="6v4tw3"
+kubectl get apiservices
+```
+
+---
+
+# 🎯 Common Root Causes
+
+| Issue                  | Effect              |
+| ---------------------- | ------------------- |
+| Metrics Server down    | no metrics          |
+| Missing CPU requests   | bad scaling         |
+| HPA misconfigured      | no scale            |
+| API aggregation broken | metrics unavailable |
+
+---
+
+# 🚨 Prod Users Reporting 504s But ELB Health Checks Green
+
+---
+
+# Important Principle
+
+Healthy target ≠ healthy application behavior.
+
+---
+
+# 🎯 Isolation Flow
+
+```text id="r3qmbf"
+Client
+  ↓
+ALB
+  ↓
+Ingress
+  ↓
+Service
+  ↓
+Pod
+  ↓
+Dependency
+```
+
+---
+
+# ✅ Step 1 — Validate ALB Metrics
+
+Check:
+
+* TargetResponseTime
+* HTTPCode_ELB_5XX
+* HTTPCode_Target_5XX
+
+---
+
+# ✅ Step 2 — Compare Health Endpoint vs Real Traffic
+
+Common issue:
+
+```text id="8n1g5s"
+/health returns 200
+```
+
+but actual API hangs.
+
+---
+
+# ✅ Step 3 — Check Backend Saturation
+
+Possible:
+
+* DB pool exhaustion
+* thread starvation
+* connection leak
+
+---
+
+# ✅ Step 4 — Validate Ingress Timeouts
+
+NGINX:
+
+```yaml id="krmjlwm"
+proxy-read-timeout
+proxy-connect-timeout
+```
+
+---
+
+# 🎯 Most Likely Causes
+
+| Cause                    | Result           |
+| ------------------------ | ---------------- |
+| DB saturation            | intermittent 504 |
+| slow downstream API      | timeout          |
+| thread exhaustion        | hangs            |
+| ingress timeout mismatch | partial failures |
+
+---
+
+# 🚨 Systemd Journal Logs Vanish on Reboot
+
+---
+
+# 🎯 Root Cause Investigation
+
+Check:
+
+```bash id="sck9k5"
+Storage=persistent
+```
+
+inside:
+
+```text id="5lqkfd"
+/etc/systemd/journald.conf
+```
+
+---
+
+# ✅ Common AMI Build Problems
+
+| Problem                      | Effect               |
+| ---------------------------- | -------------------- |
+| missing /var/log/journal     | volatile logs        |
+| tmpfs logging                | logs disappear       |
+| cloud-init overwrites config | persistence disabled |
+
+---
+
+# ✅ Validate Boot Sequence
+
+Check:
+
+```bash id="c2d3k9"
+journalctl --list-boots
+```
+
+---
+
+# 🚀 Production Fix
+
+During AMI build:
+
+```bash id="tdm0xy"
+mkdir -p /var/log/journal
+systemctl restart systemd-journald
+```
+
+---
+
+# 🚨 Production Pod OOMKilled But No Logs Exist
+
+---
+
+# 🎯 Forensic Debug Strategy
+
+---
+
+# ✅ Step 1 — Confirm OOM
+
+```bash id="x7q3jv"
+kubectl describe pod
+```
+
+Look for:
+
+```text id="4y7wme"
+Reason: OOMKilled
+```
+
+---
+
+# ✅ Step 2 — Check Previous Logs
+
+```bash id="1kg39s"
+kubectl logs --previous
+```
+
+---
+
+# ✅ Step 3 — Node-Level Kernel Logs
+
+OOM killer logs:
+
+```bash id="l4h1ev"
+dmesg -T
+journalctl -k
+```
+
+---
+
+# ✅ Step 4 — Container Runtime Logs
+
+```bash id="4uh0f5"
+crictl logs
+```
+
+---
+
+# ✅ Step 5 — Memory Leak Analysis
+
+Possible:
+
+* heap leak
+* unbounded queue
+* JVM misconfig
+* sidecar amplification
+
+---
+
+# 🎯 Production Hardening
+
+Use:
+
+* VPA recommendations
+* Prometheus memory trend alerts
+* heap dumps
+* cAdvisor metrics
+
+---
+
+# 🚨 Kernel Panic on GKE Node Mid-Deploy
+
+---
+
+# 🎯 Isolation Strategy
+
+Need to determine:
+
+* infra issue?
+* node image issue?
+* workload issue?
+
+---
+
+# ✅ Step 1 — Check Blast Radius
+
+Questions:
+
+* single node?
+* entire node pool?
+* specific deployment only?
+
+---
+
+# ✅ Step 2 — Inspect GKE Events
+
+```bash id="ruj8z6"
+kubectl get events
+```
+
+---
+
+# ✅ Step 3 — Validate Node Image
+
+Recent:
+
+* COS update?
+* Ubuntu image update?
+* kernel patch?
+
+---
+
+# ✅ Step 4 — Review Kernel Panic Logs
+
+Check:
+
+```bash id="nsm51q"
+serial console logs
+```
+
+---
+
+# ✅ Step 5 — Identify Workload Triggers
+
+Possible causes:
+
+* eBPF module
+* privileged container
+* faulty kernel syscall
+* GPU driver
+* storage driver panic
+
+---
+
+# 🎯 Production Decision Tree
+
+| Observation                    | Likely Cause           |
+| ------------------------------ | ---------------------- |
+| Entire node pool affected      | image/kernel issue     |
+| Single workload triggers panic | app/kernel interaction |
+| Storage-related panic          | CSI/kernel module      |
+| Network panic                  | CNI/eBPF issue         |
+
+---
+
+# 🚀 Final Senior-Level Interview Tip
+
+Strong SRE answers should always include:
+
+✅ isolation methodology
+✅ layered debugging
+✅ rollback strategy
+✅ observability
+✅ blast radius analysis
+✅ automation
+✅ recovery approach
+✅ prevention controls
+
+---
+
+# 🎯 Final Professional Summary
+
+> My incident response approach focuses on systematic isolation, observability-driven debugging, blast-radius reduction, immutable recovery, and root-cause elimination. I prioritize identifying whether failures originate from infrastructure, orchestration, networking, runtime, or application layers before applying rollback or remediation strategies.
+
+---
