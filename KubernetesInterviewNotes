@@ -1,0 +1,474 @@
+# ☸️ Kubernetes Interview Notes & Production Scenarios
+
+![Kubernetes](https://img.shields.io/badge/Kubernetes-v1.30-blue?style=for-the-badge\&logo=kubernetes)
+![AWS](https://img.shields.io/badge/AWS-EKS-orange?style=for-the-badge\&logo=amazonaws)
+![Terraform](https://img.shields.io/badge/Terraform-IaC-623CE4?style=for-the-badge\&logo=terraform)
+![Docker](https://img.shields.io/badge/Docker-Containers-2496ED?style=for-the-badge\&logo=docker)
+
+---
+
+# 📌 Kubernetes Architecture
+
+```text id="6jg02r"
+                 kubectl
+                     │
+                     ▼
+             kube-apiserver
+                     │
+     ┌───────────────┼───────────────┐
+     ▼               ▼               ▼
+ Scheduler   Controller Manager     etcd
+                     │
+                     ▼
+                 kubelet
+                     │
+                     ▼
+                containerd
+                     │
+                     ▼
+                    Pods
+```
+
+---
+
+# 📘 Core Kubernetes Components
+
+| Component          | Purpose                |
+| ------------------ | ---------------------- |
+| API Server         | Entry point to cluster |
+| etcd               | Cluster database       |
+| Scheduler          | Assigns pods to nodes  |
+| Controller Manager | Runs controllers       |
+| kubelet            | Node agent             |
+| kube-proxy         | Service networking     |
+| CoreDNS            | Internal DNS           |
+| CNI                | Pod networking         |
+
+---
+
+# 🚀 kubectl Cheat Sheet
+
+## Cluster Information
+
+```bash id="u0l9hk"
+kubectl cluster-info
+kubectl version
+kubectl get nodes
+kubectl get componentstatus
+```
+
+---
+
+## Pods
+
+```bash id="cb4q4t"
+kubectl get pods
+kubectl get pods -A
+kubectl describe pod <pod-name>
+kubectl logs <pod-name>
+kubectl logs <pod-name> --previous
+kubectl exec -it <pod-name> -- /bin/bash
+kubectl delete pod <pod-name>
+```
+
+---
+
+## Deployments
+
+```bash id="26w8mz"
+kubectl get deployments
+kubectl describe deployment <deployment-name>
+kubectl rollout status deployment/<deployment-name>
+kubectl rollout restart deployment/<deployment-name>
+kubectl rollout undo deployment/<deployment-name>
+kubectl scale deployment <deployment-name> --replicas=3
+```
+
+---
+
+## Services
+
+```bash id="rxp8xz"
+kubectl get svc
+kubectl describe svc <service-name>
+kubectl expose deployment nginx --port=80 --type=LoadBalancer
+```
+
+---
+
+## ConfigMaps & Secrets
+
+```bash id="u7czh5"
+kubectl get configmaps
+kubectl get secrets
+kubectl describe configmap <name>
+kubectl describe secret <name>
+```
+
+---
+
+## Namespaces
+
+```bash id="xqcvq5"
+kubectl get ns
+kubectl create ns dev
+kubectl config set-context --current --namespace=dev
+```
+
+---
+
+# 🔥 Common Interview Questions & Answers
+
+---
+
+## ❓ What happens when you run kubectl apply?
+
+```text id="o5qzj7"
+kubectl apply
+      ↓
+API Server
+      ↓
+etcd stores desired state
+      ↓
+Scheduler selects node
+      ↓
+kubelet receives instruction
+      ↓
+containerd pulls image
+      ↓
+Pod starts
+```
+
+---
+
+## ❓ What is CrashLoopBackOff?
+
+CrashLoopBackOff means a container repeatedly starts and crashes.
+
+### Common Causes
+
+* Application startup failure
+* Wrong environment variables
+* Missing ConfigMaps/Secrets
+* Dependency unavailable
+* OOMKilled
+* Probe failures
+
+### Troubleshooting Steps
+
+```bash id="20bnxu"
+kubectl describe pod <pod-name>
+kubectl logs <pod-name>
+kubectl logs <pod-name> --previous
+```
+
+---
+
+## ❓ Difference Between Deployment and StatefulSet
+
+| Deployment       | StatefulSet         |
+| ---------------- | ------------------- |
+| Stateless apps   | Stateful apps       |
+| Random pod names | Stable pod identity |
+| Shared storage   | Persistent storage  |
+| Web servers      | Databases           |
+
+---
+
+## ❓ What is a ConfigMap?
+
+ConfigMap stores non-sensitive configuration data.
+
+Examples:
+
+* Environment variables
+* Application configs
+* Feature flags
+
+---
+
+## ❓ What is a Secret?
+
+Secrets store sensitive information:
+
+* Passwords
+* Tokens
+* API keys
+* Certificates
+
+---
+
+## ❓ What is a Service?
+
+A Service exposes pods using stable networking.
+
+### Types
+
+* ClusterIP
+* NodePort
+* LoadBalancer
+* ExternalName
+
+---
+
+## ❓ What is Ingress?
+
+Ingress manages HTTP/HTTPS routing into the cluster.
+
+Usually implemented using:
+
+* NGINX Ingress Controller
+* AWS Load Balancer Controller
+
+---
+
+# 🛠️ Kubernetes Troubleshooting Commands
+
+## Check Cluster
+
+```bash id="l6qqn6"
+kubectl get nodes
+kubectl get pods -A
+kubectl top nodes
+kubectl top pods
+```
+
+---
+
+## Pod Troubleshooting
+
+```bash id="v8mlm2"
+kubectl describe pod <pod-name>
+kubectl logs <pod-name>
+kubectl logs <pod-name> --previous
+kubectl exec -it <pod-name> -- sh
+```
+
+---
+
+## Deployment Troubleshooting
+
+```bash id="38cx6s"
+kubectl rollout status deployment/<name>
+kubectl rollout history deployment/<name>
+kubectl rollout undo deployment/<name>
+```
+
+---
+
+## Networking Troubleshooting
+
+```bash id="a9omhr"
+kubectl get svc
+kubectl get endpoints
+kubectl get ingress
+kubectl describe ingress <name>
+```
+
+---
+
+## Node Troubleshooting
+
+```bash id="vk9ld2"
+kubectl describe node <node-name>
+kubectl cordon <node-name>
+kubectl drain <node-name>
+```
+
+---
+
+# 🏗️ Production Kubernetes Architecture
+
+```text id="4af7l4"
+                    Internet
+                        │
+                        ▼
+                AWS Load Balancer
+                        │
+                        ▼
+                 Ingress Controller
+                        │
+                        ▼
+                  Kubernetes Cluster
+        ┌────────────────────────────────┐
+        │                                │
+        ▼                                ▼
+   Control Plane                    Worker Nodes
+        │                                │
+        ▼                                ▼
+   API Server                        kubelet
+   Scheduler                         kube-proxy
+   Controller Manager                containerd
+   etcd                              Pods
+```
+
+---
+
+# ☁️ EKS Production Components
+
+| Component                      | Purpose                     |
+| ------------------------------ | --------------------------- |
+| EKS                            | Managed Kubernetes          |
+| Managed Node Groups            | Worker node management      |
+| ALB Controller                 | Dynamic Load Balancers      |
+| EBS CSI Driver                 | Dynamic volume provisioning |
+| Cluster Autoscaler             | Node autoscaling            |
+| IAM Roles for Service Accounts | Fine-grained permissions    |
+
+---
+
+# 🔍 Real Production Scenarios
+
+---
+
+## Scenario 1 — Pod Stuck in CrashLoopBackOff
+
+### Steps Performed
+
+```bash id="t1gmhn"
+kubectl describe pod <pod-name>
+kubectl logs <pod-name> --previous
+```
+
+### Root Cause
+
+* Missing environment variable
+* Incorrect database endpoint
+
+### Fix
+
+* Updated ConfigMap
+* Restarted deployment
+
+```bash id="c3i8ks"
+kubectl rollout restart deployment/<name>
+```
+
+---
+
+## Scenario 2 — Deployment Rollout Stuck
+
+### Investigation
+
+```bash id="v9v1zl"
+kubectl rollout status deployment/<name>
+kubectl get pods
+```
+
+### Found
+
+* Readiness probe failure
+
+### Resolution
+
+* Fixed incorrect health endpoint
+* Increased initialDelaySeconds
+
+---
+
+## Scenario 3 — Node NotReady
+
+### Checks
+
+```bash id="l6s0qv"
+kubectl describe node <node-name>
+```
+
+### Root Cause
+
+* CNI plugin failure
+
+### Fix
+
+* Restarted Flannel DaemonSet
+* Verified kubelet/containerd status
+
+---
+
+## Scenario 4 — High CPU Usage
+
+### Commands
+
+```bash id="dldaf7"
+kubectl top pods
+kubectl top nodes
+```
+
+### Resolution
+
+* Increased resource limits
+* Configured HPA
+
+---
+
+## Scenario 5 — EBS PVC Pending
+
+### Investigation
+
+```bash id="bg48kr"
+kubectl describe pvc <pvc-name>
+```
+
+### Root Cause
+
+* Missing EBS CSI Driver
+
+### Fix
+
+* Installed EBS CSI Driver
+* Verified StorageClass
+
+---
+
+# 📊 Monitoring & Logging Stack
+
+## Monitoring
+
+* Prometheus
+* Grafana
+* AlertManager
+* kube-state-metrics
+
+## Logging
+
+* Loki
+* Fluent Bit
+* EFK Stack
+
+---
+
+# 🔐 Kubernetes Security Best Practices
+
+* RBAC
+* Network Policies
+* Secrets Management
+* Pod Security Standards
+* IAM Roles for Service Accounts
+* Image Scanning
+* Least Privilege Access
+
+---
+
+# 📈 Recommended Advanced Topics
+
+* Helm
+* ArgoCD
+* GitOps
+* Service Mesh
+* Multi-cluster Kubernetes
+* Kubernetes Security
+* Disaster Recovery
+* Cluster Autoscaler
+
+---
+
+# 👨‍💻 Interview Tips
+
+✅ Explain architecture clearly
+✅ Mention troubleshooting steps sequentially
+✅ Use production examples
+✅ Mention monitoring & alerting
+✅ Explain root cause + resolution
+✅ Discuss scalability and HA design
+
+---
