@@ -1,0 +1,608 @@
+# ☸️ Advanced Kubernetes Interview Notes & Production Architecture
+
+![Kubernetes](https://img.shields.io/badge/Kubernetes-v1.30-blue?style=for-the-badge\&logo=kubernetes)
+![AWS](https://img.shields.io/badge/AWS-EKS-orange?style=for-the-badge\&logo=amazonaws)
+![Terraform](https://img.shields.io/badge/Terraform-IaC-623CE4?style=for-the-badge\&logo=terraform)
+![Docker](https://img.shields.io/badge/Docker-Containers-2496ED?style=for-the-badge\&logo=docker)
+
+---
+
+# 📌 Kubernetes Default Control Plane Components
+
+When `kubeadm` initializes a cluster, Kubernetes automatically creates the core control plane components.
+
+| Component               | Responsibility              |
+| ----------------------- | --------------------------- |
+| kube-apiserver          | Main Kubernetes API         |
+| etcd                    | Cluster state database      |
+| kube-scheduler          | Assigns pods to nodes       |
+| kube-controller-manager | Runs Kubernetes controllers |
+| kubelet                 | Node agent                  |
+| kube-proxy              | Service networking          |
+| CoreDNS                 | Cluster DNS                 |
+
+---
+
+# 🏗️ Kubernetes Architecture Flow
+
+```text id="h2e4xw"
+kubectl
+    ↓
+API Server
+    ↓
+etcd stores desired state
+    ↓
+Scheduler selects node
+    ↓
+kubelet receives instruction
+    ↓
+containerd pulls image
+    ↓
+Pod starts
+```
+
+---
+
+# 🚀 Taints & Tolerations
+
+## Core Concept
+
+| Feature      | Purpose               |
+| ------------ | --------------------- |
+| Taint        | Block unwanted pods   |
+| Toleration   | Allow special pods    |
+| NodeSelector | Simple node selection |
+| NodeAffinity | Advanced node rules   |
+| PodAffinity  | Keep pods together    |
+
+---
+
+# 🔥 Easy Understanding
+
+## Taint
+
+Applied on node.
+
+Meaning:
+
+> "Do NOT schedule pods here."
+
+Example:
+
+```bash id="4jvhce"
+kubectl taint nodes worker-2 app=database:NoSchedule
+```
+
+---
+
+## Toleration
+
+Applied on pod.
+
+Meaning:
+
+> "This pod is allowed to run there."
+
+---
+
+# 🏗️ Taint & Toleration Flow
+
+```text id="n2r38x"
+Node has taint
+        ↓
+Scheduler checks pod toleration
+        ↓
+Match found?
+   YES → Pod allowed
+   NO  → Pod blocked
+```
+
+---
+
+# 📌 Taint Effects
+
+| Effect           | Meaning                 |
+| ---------------- | ----------------------- |
+| NoSchedule       | Do not schedule         |
+| PreferNoSchedule | Try to avoid scheduling |
+| NoExecute        | Evict existing pods     |
+
+---
+
+# 🎯 Practical Production Scenario
+
+## Infrastructure Setup
+
+| Node     | Purpose                         |
+| -------- | ------------------------------- |
+| worker-1 | Normal applications             |
+| worker-2 | Production backend applications |
+| worker-3 | Monitoring stack                |
+
+---
+
+# 🎯 Requirement
+
+We want:
+
+✅ Only backend pods on worker-2
+✅ Backend pods only on SSD nodes
+✅ Backend pods stay with Redis pods
+✅ Other pods blocked
+
+---
+
+# STEP 1 — Label Node
+
+```bash id="ghv2mx"
+kubectl label node worker-2 env=prod
+kubectl label node worker-2 disktype=ssd
+```
+
+---
+
+# STEP 2 — Add Taint
+
+```bash id="5mxyzu"
+kubectl taint node worker-2 app=backend:NoSchedule
+```
+
+Meaning:
+
+> Only tolerated pods can run here.
+
+---
+
+# STEP 3 — Redis Deployment
+
+```yaml id="xwlwy8"
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: redis
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: redis
+
+  template:
+    metadata:
+      labels:
+        app: redis
+
+    spec:
+      containers:
+      - name: redis
+        image: redis
+```
+
+---
+
+# STEP 4 — Backend Deployment
+
+```yaml id="zb7ln7"
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: backend-app
+
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: backend
+
+  template:
+    metadata:
+      labels:
+        app: backend
+
+    spec:
+
+      nodeSelector:
+        env: prod
+
+      tolerations:
+      - key: "app"
+        operator: "Equal"
+        value: "backend"
+        effect: "NoSchedule"
+
+      affinity:
+
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: disktype
+                operator: In
+                values:
+                - ssd
+
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - redis
+
+            topologyKey: "kubernetes.io/hostname"
+
+      containers:
+      - name: backend
+        image: nginx
+```
+
+---
+
+# ✅ What Happens Here?
+
+## 1. Taint + Toleration
+
+Node:
+
+```text id="s8f92d"
+app=backend:NoSchedule
+```
+
+Pod has matching toleration.
+
+Result:
+
+* ✅ Backend pod allowed
+* ❌ Other pods blocked
+
+---
+
+## 2. NodeSelector
+
+```yaml id="vx75kh"
+nodeSelector:
+  env: prod
+```
+
+Scheduler only checks nodes having:
+
+```text id="r48xtm"
+env=prod
+```
+
+---
+
+## 3. NodeAffinity
+
+```text id="kp0mb0"
+disktype=ssd
+```
+
+Pod requires SSD nodes.
+
+---
+
+## 4. PodAffinity
+
+Backend pod prefers same node where Redis exists.
+
+```text id="fw4fme"
+topologyKey: kubernetes.io/hostname
+```
+
+Meaning:
+
+> Same worker node.
+
+---
+
+# 🧠 Important Interview Difference
+
+| Feature          | Meaning          |
+| ---------------- | ---------------- |
+| Node Affinity    | Pod chooses node |
+| Taint/Toleration | Node rejects pod |
+
+---
+
+# 📦 Minimum Important Kubernetes Manifest Fields
+
+Every manifest should contain:
+
+```yaml id="jpd6wz"
+apiVersion:
+kind:
+metadata:
+spec:
+```
+
+---
+
+# 🏗️ Standard NGINX Deployment Manifest
+
+```yaml id="o7qgse"
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: nginx-deployment
+
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: nginx
+
+  template:
+    metadata:
+      labels:
+        app: nginx
+
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:latest
+
+        ports:
+        - containerPort: 80
+
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+```
+
+---
+
+# 🌐 Service Manifest
+
+```yaml id="qz0n8x"
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: nginx-service
+
+spec:
+  type: ClusterIP
+
+  selector:
+    app: nginx
+
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
+```
+
+---
+
+# 🧠 Interviewer Usually Checks
+
+Interviewers silently verify understanding of:
+
+```text id="jslfnq"
+Deployment → ReplicaSet → Pod
+Service → Labels → Pod connection
+```
+
+---
+
+# 📌 Kubernetes Architecture Flow
+
+```text id="uzr0cz"
+User
+ ↓
+Ingress
+ ↓
+Service
+ ↓
+Deployment
+ ↓
+Pods
+```
+
+---
+
+# 🔥 Common Kubernetes Interview Questions
+
+---
+
+# Difference Between Deployment & StatefulSet
+
+| Deployment       | StatefulSet     |
+| ---------------- | --------------- |
+| Stateless        | Stateful        |
+| Random pod names | Stable identity |
+| Web apps         | Databases/Kafka |
+
+---
+
+# Why Service Needed?
+
+Because pod IPs change.
+
+Service provides:
+
+* Stable DNS
+* Stable IP
+* Load balancing
+
+---
+
+# Why Labels Important?
+
+Services discover pods using labels.
+
+Example:
+
+```yaml id="0z2u2w"
+labels:
+  app: nginx
+```
+
+Service selector:
+
+```yaml id="yei5eg"
+selector:
+  app: nginx
+```
+
+---
+
+# ☁️ AWS Load Balancer Integration
+
+Kubernetes itself CANNOT create AWS load balancers.
+
+Requires:
+
+## AWS Load Balancer Controller
+
+Responsibilities:
+
+* Watches Ingress resources
+* Watches LoadBalancer services
+* Calls AWS APIs
+* Creates ALB/NLB
+* Manages listeners/target groups
+
+---
+
+# 💾 AWS EBS Storage Integration
+
+Kubernetes itself CANNOT create AWS EBS volumes.
+
+Requires:
+
+## Amazon EBS CSI Driver
+
+Responsibilities:
+
+* Watches PVCs
+* Calls AWS APIs
+* Dynamically provisions EBS
+* Attaches/mounts storage
+
+---
+
+# 🏗️ Real Production Architecture
+
+```text id="vlv3l5"
+Terraform
+    ↓
+Provision AWS Infrastructure
+    ↓
+Install AWS Controllers
+    ├── AWS Load Balancer Controller
+    └── EBS CSI Driver
+    ↓
+Controllers watch Kubernetes objects
+    ↓
+Application manifests use:
+    ├── Ingress
+    ├── LoadBalancer Services
+    └── PersistentVolumeClaims
+    ↓
+Controllers call AWS APIs dynamically
+```
+
+---
+
+# 🔐 Terraform Responsibilities
+
+Terraform usually provisions:
+
+| Terraform Creates  | Purpose               |
+| ------------------ | --------------------- |
+| IAM roles/policies | AWS API access        |
+| IRSA/OIDC          | Secure authentication |
+| Helm releases      | Install controllers   |
+| Security Groups    | Traffic rules         |
+| Subnet tags        | ALB discovery         |
+
+---
+
+# 📈 Production Best Practice
+
+Application teams SHOULD NOT:
+
+* Manually create ALB
+* Manually create EBS volumes
+
+Instead:
+
+* Applications define Kubernetes manifests
+* Controllers automate cloud resources
+
+This is one of Kubernetes’ biggest production advantages.
+
+---
+
+# 🎯 Professional Interview Answer
+
+> Kubernetes is cloud agnostic, so AWS integrations require additional controllers. AWS Load Balancer Controller provisions ALB/NLB resources for Ingress and LoadBalancer services, while the EBS CSI Driver dynamically provisions EBS volumes for PersistentVolumeClaims. These integrations are typically installed using Helm or Terraform and secured using IAM Roles for Service Accounts (IRSA).
+
+---
+
+# 🚀 Senior-Level Topics To Mention
+
+To impress interviewers, discuss:
+
+* HPA
+* PodDisruptionBudget
+* AntiAffinity
+* SecurityContext
+* Rolling Updates
+* Cluster Autoscaler
+* IRSA
+* GitOps
+* ArgoCD
+
+---
+
+# 🔥 Ultimate Interview Tip
+
+Do NOT memorize full YAML.
+
+Remember architecture flow:
+
+```text id="v55z3m"
+User
+ ↓
+Ingress
+ ↓
+Service
+ ↓
+Deployment
+ ↓
+Pods
+```
+
+Then explain:
+
+* WHY each component exists
+* HOW traffic flows
+* HOW Kubernetes schedules workloads
+* HOW cloud integrations work
+
+---
