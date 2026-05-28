@@ -1,0 +1,673 @@
+# 🚀 Senior DevOps / Kubernetes / SRE Interview Scenarios & Answers
+
+![Kubernetes](https://img.shields.io/badge/Kubernetes-Advanced-blue?style=for-the-badge\&logo=kubernetes)
+![AWS](https://img.shields.io/badge/AWS-EKS-orange?style=for-the-badge\&logo=amazonaws)
+![Terraform](https://img.shields.io/badge/Terraform-IaC-623CE4?style=for-the-badge\&logo=terraform)
+![Helm](https://img.shields.io/badge/Helm-Helm3-0F1689?style=for-the-badge\&logo=helm)
+
+---
+
+# ☸️ Design a Multi-Tenant EKS Cluster with Isolation Across Dev, QA, and Prod
+
+## Objective
+
+Provide strong isolation between:
+
+* Dev
+* QA
+* Production
+
+while preventing:
+
+* noisy neighbors
+* security leakage
+* resource starvation
+
+---
+
+# 🏗️ Recommended Architecture
+
+```text id="2v3vyo"
+                    AWS Organization
+                            │
+                            ▼
+                         EKS Cluster
+        ┌─────────────────────────────────────┐
+        │                                     │
+        ▼                                     ▼
+   Shared Services                    Tenant Workloads
+        │                                     │
+        ├── Monitoring                        ├── Dev Namespace
+        ├── Logging                           ├── QA Namespace
+        ├── Ingress                           └── Prod Namespace
+        └── Security
+```
+
+---
+
+# 🔐 Isolation Strategy
+
+## 1. Namespace Isolation
+
+Separate namespaces:
+
+```text id="m0t7a5"
+dev
+qa
+prod
+```
+
+---
+
+## 2. RBAC
+
+Environment-specific IAM + RBAC.
+
+Example:
+
+* Dev team cannot access prod namespace
+* Read-only QA access
+* Admin-only production access
+
+---
+
+## 3. Network Policies
+
+Prevent pod communication across environments.
+
+Example:
+
+```text id="w93qug"
+Dev pods CANNOT talk to Prod pods
+```
+
+Use:
+
+* Calico
+* Cilium
+
+---
+
+## 4. Dedicated Node Groups
+
+| Environment | Dedicated Nodes           |
+| ----------- | ------------------------- |
+| Dev         | Spot instances            |
+| QA          | Shared nodes              |
+| Prod        | Dedicated On-Demand nodes |
+
+Use:
+
+* taints/tolerations
+* node affinity
+
+to isolate workloads.
+
+---
+
+## 5. Resource Quotas & Limits
+
+Prevent noisy neighbors.
+
+Use:
+
+* ResourceQuota
+* LimitRange
+* requests/limits
+
+Example:
+
+```yaml id="wn0q8e"
+resources:
+  requests:
+    cpu: "500m"
+    memory: "1Gi"
+```
+
+---
+
+## 6. Pod Security
+
+Enforce:
+
+* restricted PSP/PSS
+* non-root containers
+* read-only filesystem
+* seccomp profiles
+
+---
+
+# 🎯 Production-Level Enhancements
+
+* IRSA
+* Kyverno / OPA Gatekeeper
+* Cluster Autoscaler
+* HPA/VPA
+* Falco runtime security
+* Service Mesh segmentation
+
+---
+
+# 🧩 Managing 10+ Kustomize Overlays Without Drift or Duplication
+
+## Problem
+
+Large Kustomize setups often suffer:
+
+* YAML duplication
+* configuration drift
+* inconsistent patches
+
+---
+
+# ✅ Recommended Strategy
+
+## 1. Strong Base Layer
+
+Keep reusable configuration in:
+
+```text id="9jlwm6"
+base/
+```
+
+Contains:
+
+* deployments
+* services
+* ingress
+* probes
+* common labels
+
+---
+
+## 2. Thin Environment Overlays
+
+Only environment-specific changes in:
+
+```text id="jmw0wo"
+overlays/dev
+overlays/qa
+overlays/prod
+```
+
+---
+
+## 3. Common Components Pattern
+
+Use:
+
+```text id="h6pm4x"
+components/
+```
+
+For:
+
+* monitoring
+* sidecars
+* security policies
+* common annotations
+
+---
+
+## 4. GitOps Validation
+
+Use:
+
+* ArgoCD
+* FluxCD
+
+with:
+
+* drift detection
+* sync policies
+* PR validation
+
+---
+
+## 5. CI Validation
+
+Validate:
+
+```bash id="yvjzvb"
+kustomize build overlays/prod
+kubectl diff
+```
+
+Use:
+
+* kubeconform
+* kubeval
+* conftest
+
+---
+
+# 🔐 Secure Cross-Region S3 Replication & Data Integrity Validation
+
+---
+
+# Recommended Security Controls
+
+## 1. Encryption
+
+Use:
+
+* SSE-KMS
+* Customer-managed CMKs
+
+Separate keys per region.
+
+---
+
+## 2. Least Privilege IAM
+
+Replication role:
+
+* only replication permissions
+* bucket-scoped policies
+
+---
+
+## 3. Private Connectivity
+
+Use:
+
+* VPC endpoints
+* Block public bucket access
+
+---
+
+# ✅ Data Integrity Validation
+
+## Methods
+
+### S3 Versioning
+
+Mandatory for replication validation.
+
+---
+
+### Object Lock
+
+Protect against accidental deletion/ransomware.
+
+---
+
+### Checksums
+
+Validate:
+
+* SHA256
+* ETag comparison
+
+---
+
+### AWS CloudTrail + Config
+
+Audit:
+
+* replication failures
+* object tampering
+
+---
+
+# 📊 Scale Validation Strategy
+
+Use:
+
+* S3 Inventory
+* Athena queries
+* Lambda validation jobs
+* EventBridge monitoring
+
+---
+
+# ⚙️ What Happens When systemd Hits a Failing Unit on a Containerized Node?
+
+---
+
+# Flow
+
+```text id="pk16zm"
+systemd unit fails
+        ↓
+Restart policy triggered
+        ↓
+systemd retries restart
+        ↓
+Failure threshold exceeded
+        ↓
+Unit enters failed state
+```
+
+---
+
+# 🚑 Auto-Recovery Strategy
+
+## 1. Configure Restart Policy
+
+Example:
+
+```ini id="ix4u8d"
+Restart=always
+RestartSec=5
+```
+
+---
+
+## 2. Node Health Monitoring
+
+Use:
+
+* node-problem-detector
+* Prometheus alerts
+
+---
+
+## 3. Auto Remediation
+
+If kubelet/container runtime unhealthy:
+
+* cordon node
+* drain node
+* ASG replaces node
+
+---
+
+## 4. Immutable Infrastructure
+
+Never manually repair nodes.
+
+Instead:
+
+* replace failed node automatically
+* bootstrap using Launch Templates/cloud-init
+
+---
+
+# 🔥 Detect & Mitigate Pod-to-Pod Lateral Movement
+
+---
+
+# Detection Strategy
+
+## Runtime Security
+
+Use:
+
+* Falco
+* Tetragon
+* Cilium Hubble
+
+Detect:
+
+* suspicious exec
+* shell spawning
+* privilege escalation
+* unexpected network traffic
+
+---
+
+# Mitigation Strategy
+
+## 1. Network Policies
+
+Default deny:
+
+```text id="1xllwy"
+deny-all
+```
+
+Then explicitly allow required traffic.
+
+---
+
+## 2. Service Mesh
+
+Use:
+
+* Istio
+* Linkerd
+
+for:
+
+* mTLS
+* traffic policies
+* identity enforcement
+
+---
+
+## 3. Namespace Segmentation
+
+Separate:
+
+* apps
+* infra
+* monitoring
+* prod/dev
+
+---
+
+## 4. Pod Security Standards
+
+Prevent:
+
+* privileged containers
+* host networking
+* host PID access
+
+---
+
+## 5. EDR/SIEM Integration
+
+Integrate:
+
+* GuardDuty
+* Sentinel
+* Splunk
+* Elastic SIEM
+
+---
+
+# 🚀 Zero-Downtime Stateful Upgrades Using Helm 3
+
+---
+
+# Strategy
+
+## 1. Rolling Update StatefulSet
+
+Use:
+
+```yaml id="qj0ub6"
+updateStrategy:
+  type: RollingUpdate
+```
+
+---
+
+## 2. PodDisruptionBudget
+
+Ensure minimum availability.
+
+---
+
+## 3. Readiness Probes
+
+Traffic only routed when pod healthy.
+
+---
+
+## 4. Pre-Upgrade Validation
+
+Validate:
+
+* storage compatibility
+* DB schema changes
+* backward compatibility
+
+---
+
+## 5. Helm Upgrade Process
+
+```bash id="5qxt1k"
+helm upgrade --install
+```
+
+Use:
+
+```bash id="n4vh3o"
+--atomic
+--wait
+```
+
+---
+
+## 6. Canary / Blue-Green Strategy
+
+For critical databases:
+
+* replica upgrade first
+* failover validation
+* controlled switchover
+
+---
+
+# 🌐 Hybrid Cloud Routing Architecture Between AWS & GCP
+
+---
+
+# Recommended Design
+
+```text id="jv04d0"
+AWS VPC
+    │
+Transit Gateway
+    │
+VPN / Direct Connect
+    │
+Cloud Router
+    │
+GCP VPC
+```
+
+---
+
+# Boundary Enforcement
+
+## AWS Side
+
+* Security Groups
+* NACLs
+* Transit Gateway route tables
+
+---
+
+## GCP Side
+
+* Firewall Rules
+* VPC Service Controls
+
+---
+
+## Shared Controls
+
+* Zero Trust
+* mTLS
+* Identity-aware policies
+* Segmented CIDRs
+
+---
+
+# 🔥 Terraform State Corruption During Backend Migration
+
+---
+
+# Recovery Strategy
+
+## 1. Stop All Changes Immediately
+
+Prevent additional writes.
+
+---
+
+## 2. Restore State Backup
+
+Terraform usually creates:
+
+```text id="7xvqgq"
+terraform.tfstate.backup
+```
+
+---
+
+## 3. Validate Infrastructure
+
+Use:
+
+```bash id="u4p20x"
+terraform refresh
+terraform plan
+```
+
+---
+
+## 4. Rebuild Missing Resources
+
+If state partially lost:
+
+```bash id="j46ujx"
+terraform import
+```
+
+---
+
+## 5. Enable State Protection
+
+Production best practices:
+
+* S3 versioning
+* DynamoDB locking
+* encrypted backend
+* CI/CD controlled apply
+
+---
+
+# 🐚 Bash One-Liner
+
+## Find Running Containers Using More Than 500MB RSS Memory
+
+```bash id="1g0b7g"
+docker stats --no-stream --format "{{.Name}} {{.MemUsage}}" | awk '$2+0 > 500'
+```
+
+---
+
+# Kubernetes Runtime Alternative (containerd)
+
+```bash id="5q9j10"
+crictl stats | awk '$4+0 > 500'
+```
+
+---
+
+# 🎯 Senior-Level Interview Tips
+
+Strong answers should include:
+
+* scalability
+* security
+* automation
+* failure recovery
+* observability
+* immutable infrastructure
+* GitOps
+* zero trust
+* disaster recovery
+
+---
+
+# 🚀 Final Professional Summary
+
+> In production environments, my approach focuses on automation, isolation, security, observability, and immutable infrastructure principles. I prefer GitOps-driven Kubernetes operations, Terraform-managed infrastructure, policy enforcement through admission controllers, runtime security monitoring, and automated recovery mechanisms to ensure scalable and resilient cloud-native platforms.
+
+---
