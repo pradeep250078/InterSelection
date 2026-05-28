@@ -1,0 +1,248 @@
+# 🚀 Production-Grade Kubernetes Cluster on AWS using Terraform & kubeadm
+
+![Terraform](https://img.shields.io/badge/Terraform-IaC-623CE4?style=for-the-badge\&logo=terraform)
+![AWS](https://img.shields.io/badge/AWS-Cloud-orange?style=for-the-badge\&logo=amazonaws)
+![Kubernetes](https://img.shields.io/badge/Kubernetes-v1.30-blue?style=for-the-badge\&logo=kubernetes)
+![Docker](https://img.shields.io/badge/Docker-Containers-2496ED?style=for-the-badge\&logo=docker)
+![Ansible](https://img.shields.io/badge/Ansible-Automation-black?style=for-the-badge\&logo=ansible)
+![Jenkins](https://img.shields.io/badge/Jenkins-CI/CD-red?style=for-the-badge\&logo=jenkins)
+![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-Automation-2088FF?style=for-the-badge\&logo=githubactions)
+
+---
+
+# 📌 Overview
+
+This project demonstrates a production-style Kubernetes cluster deployment on AWS using:
+
+* Terraform Infrastructure as Code
+* kubeadm Kubernetes bootstrap
+* Auto Scaling Groups
+* Launch Templates
+* cloud-init automation
+* containerd runtime
+* Flannel CNI networking
+* AWS SSM Parameter Store integration
+
+The infrastructure follows immutable infrastructure and self-healing node architecture patterns commonly used in production DevOps environments.
+
+---
+
+# 🏗️ Architecture
+
+```text
+Terraform
+   ↓
+AWS Infrastructure
+   ├── VPC
+   ├── Subnets
+   ├── IAM Roles
+   ├── Security Groups
+   ├── Launch Templates
+   ├── Auto Scaling Groups
+   └── EC2 Instances
+            ↓
+cloud-init bootstrap
+            ↓
+kubeadm initialization
+            ↓
+Kubernetes Cluster
+```
+
+---
+
+# ⚙️ Technologies Used
+
+| Category                 | Tools                   |
+| ------------------------ | ----------------------- |
+| Cloud                    | AWS                     |
+| IaC                      | Terraform               |
+| Containers               | Docker, containerd      |
+| Orchestration            | Kubernetes              |
+| CI/CD                    | Jenkins, GitHub Actions |
+| Configuration Management | Ansible                 |
+| Monitoring               | Prometheus, Grafana     |
+| Logging                  | Loki, EFK               |
+| Scripting                | Bash, Python            |
+
+---
+
+# 📂 Project Structure
+
+```text
+terraform-k8s/
+│
+├── modules/
+├── userdata/
+├── environments/
+├── scripts/
+├── monitoring/
+└── README.md
+```
+
+---
+
+# 🚀 Features
+
+* Infrastructure as Code
+* Self-healing worker nodes
+* Auto Scaling Groups
+* Automated worker joining
+* Production-ready networking
+* Monitoring stack integration
+* CI/CD ready deployment model
+* Rolling updates support
+
+---
+
+# 🔧 Deployment Steps
+
+## Initialize Terraform
+
+```bash
+terraform init
+```
+
+## Plan Infrastructure
+
+```bash
+terraform plan
+```
+
+## Deploy Infrastructure
+
+```bash
+terraform apply
+```
+
+## Verify Kubernetes Cluster
+
+```bash
+kubectl get nodes
+kubectl get pods -A
+```
+
+---
+
+# 📊 Monitoring Stack
+
+Implemented:
+
+* Prometheus
+* Grafana
+* AlertManager
+* node-exporter
+* kube-state-metrics
+
+---
+
+# 🔐 Security Features
+
+* IAM Role-based access
+* Security Groups
+* Private networking support
+* SSM Parameter Store integration
+* Immutable infrastructure approach
+
+---
+
+# 📈 Future Enhancements
+
+* Multi-master HA cluster
+* ArgoCD GitOps
+* Cluster Autoscaler
+* AWS Load Balancer Controller
+* ExternalDNS
+* Helm-based deployments
+
+---
+2. Architecture Diagrams
+# Kubernetes AWS Architecture Diagram
+
+```text
+                    ┌────────────────────┐
+                    │     Developer      │
+                    └─────────┬──────────┘
+                              │
+                              ▼
+                     GitHub / Bitbucket
+                              │
+                              ▼
+                  Jenkins / GitHub Actions
+                              │
+                              ▼
+                     Docker Image Build
+                              │
+                              ▼
+                    Push to AWS ECR
+                              │
+                              ▼
+                        Kubernetes
+                   (EKS / kubeadm)
+         ┌─────────────────────────────────┐
+         │                                 │
+         ▼                                 ▼
+   Control Plane                    Worker Nodes
+         │                                 │
+         ▼                                 ▼
+     kube-apiserver                 kubelet/containerd
+         │                                 │
+         ▼                                 ▼
+      etcd DB                         Application Pods
+         │
+         ▼
+ AWS Load Balancer Controller
+         │
+         ▼
+      ALB / NLB
+         │
+         ▼
+       Users
+```
+
+---
+
+# Terraform + cloud-init Flow
+
+```text
+Terraform
+    ↓
+Provision AWS Infrastructure
+    ↓
+EC2 user_data executes cloud-init
+    ↓
+Install:
+- containerd
+- kubelet
+- kubeadm
+    ↓
+Master initializes cluster
+    ↓
+Join token stored in SSM
+    ↓
+Worker nodes retrieve token
+    ↓
+Workers auto join cluster
+```
+
+---
+
+# Kubernetes Internal Flow
+
+```text
+kubectl apply
+        ↓
+API Server
+        ↓
+Scheduler
+        ↓
+kubelet
+        ↓
+containerd
+        ↓
+Pod Created
+```
+
+
+# 👨‍💻 Author
+
+DevOps Engineer | Kubernetes | AWS | Terraform | CI/CD | SRE
